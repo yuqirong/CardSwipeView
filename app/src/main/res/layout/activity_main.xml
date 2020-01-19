@@ -6,9 +6,51 @@
     android:orientation="vertical"
     tools:context="com.yuqirong.cardswipeview.MainActivity">
 
-    <android.support.v7.widget.RecyclerView
+    <me.yuqirong.cardswipelayout.CardRecyclerView
         android:id="@+id/recyclerView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="0dp"
+        android:layout_weight="1" />
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="20dp">
+
+        <ImageButton
+            android:id="@+id/hate_button"
+            android:layout_width="65dp"
+            android:layout_height="65dp"
+            android:background="@null"
+            android:scaleType="centerInside"
+            android:src="@drawable/img_buttons_hate_selector" />
+
+        <Space
+            android:layout_width="12dp"
+            android:layout_height="wrap_content" />
+
+        <ImageButton
+            android:id="@+id/like_button"
+            android:layout_width="65dp"
+            android:layout_height="65dp"
+            android:background="@null"
+            android:scaleType="centerInside"
+            android:src="@drawable/img_buttons_like_selector" />
+
+        <Space
+            android:layout_width="12dp"
+            android:layout_height="wrap_content" />
+
+        <ImageButton
+            android:id="@+id/back_button"
+            android:layout_width="65dp"
+            android:layout_height="65dp"
+            android:background="@null"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_reply_black_24dp" />
+
+    </LinearLayout>
 </LinearLayout>
