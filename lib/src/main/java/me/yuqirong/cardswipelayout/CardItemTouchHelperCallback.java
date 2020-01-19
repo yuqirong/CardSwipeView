@@ -1,11 +1,17 @@
 package me.yuqirong.cardswipelayout;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.graphics.Canvas;
 import android.support.annotation.NonNull;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.helper.ItemTouchHelper;
 import android.view.View;
+import android.view.animation.Interpolator;
+import android.widget.Toast;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -17,13 +23,42 @@ public class CardItemTouchHelperCallback<T> extends ItemTouchHelper.Callback {
     private final RecyclerView.Adapter adapter;
     private List<T> dataList;
     private OnSwipeListener<T> mListener;
+    private CardRecyclerView recyclerView;
+    ValueAnimator swipeAnimator;
+    //需要撤回的View列表
+    List<ReturnView> mLastReturnList = new ArrayList<>();
+    //需要添加道卡片的列表
+    List<T> needAddLastList = new ArrayList<>();
 
-    public CardItemTouchHelperCallback(@NonNull RecyclerView.Adapter adapter, @NonNull List<T> dataList) {
-        this.adapter = checkIsNull(adapter);
-        this.dataList = checkIsNull(dataList);
+    public int getReturnSize(){
+        return mLastReturnList.size();
     }
 
-    public CardItemTouchHelperCallback(@NonNull RecyclerView.Adapter adapter, @NonNull List<T> dataList, OnSwipeListener<T> listener) {
+    public void addData(T data) {
+        needAddLastList.add(data);
+    }
+
+    public static class ReturnView<T> {
+
+        RecyclerView.ViewHolder viewHolder;
+        Integer direction;
+        T curData;
+
+        public ReturnView(RecyclerView.ViewHolder viewHolder, Integer direction, T data) {
+            this.viewHolder = viewHolder;
+            this.direction = direction;
+            this.curData = data;
+        }
+
+    }
+
+    public CardItemTouchHelperCallback(@NonNull CardRecyclerView recyclerView, @NonNull RecyclerView.Adapter adapter, @NonNull List<T> dataList) {
+        this(recyclerView, adapter, dataList, null);
+    }
+
+    public CardItemTouchHelperCallback(@NonNull CardRecyclerView recyclerView, @NonNull RecyclerView.Adapter adapter,
+                                       @NonNull List<T> dataList, OnSwipeListener<T> listener) {
+        this.recyclerView = checkIsNull(recyclerView);
         this.adapter = checkIsNull(adapter);
         this.dataList = checkIsNull(dataList);
         this.mListener = listener;
@@ -63,12 +98,20 @@ public class CardItemTouchHelperCallback<T> extends ItemTouchHelper.Callback {
         int layoutPosition = viewHolder.getLayoutPosition();
         T remove = dataList.remove(layoutPosition);
         adapter.notifyDataSetChanged();
+
+        mLastReturnList.add(new ReturnView(viewHolder,direction,remove));
         if (mListener != null) {
             mListener.onSwiped(viewHolder, remove, direction == ItemTouchHelper.LEFT ? CardConfig.SWIPED_LEFT : CardConfig.SWIPED_RIGHT);
         }
+
         // 当没有数据时回调 mListener
         if (adapter.getItemCount() == 0) {
-            if (mListener != null) {
+            if(needAddLastList.size() > 0) {
+                dataList.addAll(needAddLastList);
+                needAddLastList.clear();
+                mLastReturnList.clear();
+                adapter.notifyDataSetChanged();
+            }else if (mListener != null) {
                 mListener.onSwipedClear();
             }
         }
@@ -131,6 +174,103 @@ public class CardItemTouchHelperCallback<T> extends ItemTouchHelper.Callback {
 
     private float getThreshold(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder) {
         return recyclerView.getWidth() * getSwipeThreshold(viewHolder);
+    }
+
+    public T handlerCardBack(long duration) {
+        if(mLastReturnList.isEmpty()) {
+            Toast.makeText(recyclerView.getContext(),"当前不可返回",Toast.LENGTH_SHORT).show();
+            return null;
+        }
+
+        final ReturnView returnView = mLastReturnList.remove(mLastReturnList.size()-1);
+
+        // 移除 onTouchListener,否则触摸滑动会乱了
+        RecyclerView.ViewHolder topHolder = recyclerView.findViewHolderForAdapterPosition(0);
+        if(topHolder != null&&topHolder.itemView != null) {
+            topHolder.itemView.setOnTouchListener(null);
+        }
+
+        dataList.add(0, (T) returnView.curData);
+        adapter.notifyDataSetChanged();
+
+        if (swipeAnimator != null && swipeAnimator.isStarted()) {
+            return null;
+        }
+        final CardRecyclerView recyclerView = checkIsNull(this.recyclerView);
+        final Canvas canvas = checkIsNull(this.recyclerView.getCanvas());
+        if (returnView.viewHolder == null) {
+            return null;
+        }
+        if (returnView.direction == CardConfig.SWIPING_LEFT) {
+            swipeAnimator = ValueAnimator.ofFloat(-recyclerView.getWidth() / 2, 0);
+        } else if (returnView.direction == CardConfig.SWIPING_RIGHT) {
+            swipeAnimator = ValueAnimator.ofFloat(recyclerView.getWidth() / 2, 0);
+        } else {
+            throw new IllegalStateException("flag must be one of SWIPING_LEFT or SWIPING_RIGHT");
+        }
+        swipeAnimator.setDuration(duration);
+        swipeAnimator.setInterpolator(null);
+        swipeAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+
+                float value = (float) animation.getAnimatedValue();
+                onChildDraw(canvas, recyclerView, returnView.viewHolder, value, 0, ItemTouchHelper.ACTION_STATE_SWIPE, false);
+            }
+        });
+        swipeAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                super.onAnimationEnd(animation);
+//                onSwiped(returnView.viewHolder, returnView.direction == CardConfig.SWIPING_LEFT ? ItemTouchHelper.LEFT : ItemTouchHelper.RIGHT);
+            }
+        });
+        swipeAnimator.start();
+
+        return (T) returnView.curData;
+
+    }
+
+    public void handleCardSwipe(int flag, long duration) {
+        handleCardSwipe(flag, duration, null);
+    }
+
+    public void handleCardSwipe(final int flag, long duration, Interpolator interpolator) {
+        if (swipeAnimator != null && swipeAnimator.isStarted()) {
+            return;
+        }
+        final CardRecyclerView recyclerView = checkIsNull(this.recyclerView);
+        final Canvas canvas = checkIsNull(this.recyclerView.getCanvas());
+        final RecyclerView.ViewHolder viewHolder = recyclerView.findViewHolderForAdapterPosition(0);
+        if (viewHolder == null) {
+            return;
+        }
+        if (flag == CardConfig.SWIPING_LEFT) {
+            swipeAnimator = ValueAnimator.ofFloat(0, -recyclerView.getWidth() / 2);
+        } else if (flag == CardConfig.SWIPING_RIGHT) {
+            swipeAnimator = ValueAnimator.ofFloat(0, recyclerView.getWidth() / 2);
+        } else {
+            throw new IllegalStateException("flag must be one of SWIPING_LEFT or SWIPING_RIGHT");
+        }
+        swipeAnimator.setDuration(duration);
+        swipeAnimator.setInterpolator(interpolator);
+        swipeAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+
+                float value = (float) animation.getAnimatedValue();
+                onChildDraw(canvas, recyclerView, viewHolder, value, 0, ItemTouchHelper.ACTION_STATE_SWIPE, true);
+            }
+        });
+        swipeAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                super.onAnimationEnd(animation);
+                onSwiped(viewHolder, flag == CardConfig.SWIPING_LEFT ? ItemTouchHelper.LEFT : ItemTouchHelper.RIGHT);
+                clearView(recyclerView, viewHolder);
+            }
+        });
+        swipeAnimator.start();
     }
 
 }

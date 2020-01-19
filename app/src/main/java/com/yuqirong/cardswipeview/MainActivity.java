@@ -8,6 +8,7 @@ import android.support.v7.widget.helper.ItemTouchHelper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.Toast;
 
@@ -17,12 +18,15 @@ import java.util.List;
 import me.yuqirong.cardswipelayout.CardConfig;
 import me.yuqirong.cardswipelayout.CardItemTouchHelperCallback;
 import me.yuqirong.cardswipelayout.CardLayoutManager;
+import me.yuqirong.cardswipelayout.CardRecyclerView;
 import me.yuqirong.cardswipelayout.OnSwipeListener;
 
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
     private List<Integer> list = new ArrayList<>();
+    private CardItemTouchHelperCallback<Integer> cardCallback;
+    private CardRecyclerView recyclerView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,10 +37,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initView() {
-        final RecyclerView recyclerView = (RecyclerView) findViewById(R.id.recyclerView);
+        ImageButton likeButton = (ImageButton) findViewById(R.id.like_button);
+        ImageButton hateButton = (ImageButton) findViewById(R.id.hate_button);
+        ImageButton backButton = (ImageButton) findViewById(R.id.back_button);
+        likeButton.setOnClickListener(this);
+        hateButton.setOnClickListener(this);
+        backButton.setOnClickListener(this);
+
+        recyclerView = (CardRecyclerView) findViewById(R.id.recyclerView);
         recyclerView.setItemAnimator(new DefaultItemAnimator());
         recyclerView.setAdapter(new MyAdapter());
-        CardItemTouchHelperCallback cardCallback = new CardItemTouchHelperCallback(recyclerView.getAdapter(), list);
+        cardCallback = new CardItemTouchHelperCallback(recyclerView, recyclerView.getAdapter(), list);
         cardCallback.setOnSwipedListener(new OnSwipeListener<Integer>() {
 
             @Override
@@ -89,6 +100,21 @@ public class MainActivity extends AppCompatActivity {
         list.add(R.drawable.img_avatar_05);
         list.add(R.drawable.img_avatar_06);
         list.add(R.drawable.img_avatar_07);
+    }
+
+    @Override
+    public void onClick(View v) {
+        switch (v.getId()) {
+            case R.id.like_button:
+                cardCallback.handleCardSwipe(CardConfig.SWIPING_RIGHT, 300L);
+                break;
+            case R.id.hate_button:
+                cardCallback.handleCardSwipe(CardConfig.SWIPING_LEFT, 300L);
+                break;
+            case R.id.back_button:
+                cardCallback.handlerCardBack(300L);
+                break;
+        }
     }
 
     private class MyAdapter extends RecyclerView.Adapter {
